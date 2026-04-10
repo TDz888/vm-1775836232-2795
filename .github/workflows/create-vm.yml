@@ -1,0 +1,52 @@
+name: Create Windows VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      tailscale_key:
+        description: 'Tailscale Auth Key'
+        required: true
+        type: string
+
+jobs:
+  create-vm:
+    runs-on: windows-latest
+    timeout-minutes: 480
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install Tailscale
+        shell: pwsh
+        run: |
+          Write-Host "Installing Tailscale..."
+          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
+          $installer = "$env:TEMP\tailscale.exe"
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
+      
+      - name: Connect Tailscale
+        shell: pwsh
+        run: |
+          & "C:\Program Files\Tailscale\Tailscale.exe" up --auth-key "${{ github.event.inputs.tailscale_key }}"
+          Start-Sleep -Seconds 15
+          $ip = & "C:\Program Files\Tailscale\Tailscale.exe" ip -4
+          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+          Write-Host "Tailscale IP: $ip"
+      
+      - name: Setup Windows
+        shell: pwsh
+        run: |
+          net user 3pknoodp ikSLEY9!eKmrA2 /add
+          net localgroup Administrators 3pknoodp /add
+          Write-Host "User 3pknoodp created"
+      
+      - name: Keep Alive
+        shell: pwsh
+        run: |
+          $end = (Get-Date).AddHours(6)
+          while ((Get-Date) -lt $end) {
+            Write-Host "VM running..."
+            Start-Sleep -Seconds 300
+          }
